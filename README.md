@@ -1,124 +1,249 @@
-# Claude Code Relay
+# Claude Code Relay — Enhanced Version with Environment Switcher
 
-A small toolkit that lets **Claude Code (Anthropic CLI)** quickly switch environments and optionally talk to
-**OpenAI Codex CLI (GPT Code)** through an **Anthropic-compatible proxy**. In addition to the experimental
-**GPT Code** path, the toolkit includes two stable modes: **Claude (native)** and **GLM via z.ai**.
+This repository provides a development relay and environment switcher for **Claude Code**, allowing you to seamlessly switch between:
 
-> ⚠️ **Experimental**: the **GPT Code / Codex CLI** path may be limited by vendor changes and may break without notice.
-> Recommended for **POC/Debug** only — **not** for production workloads.
+- **Claude (native subscription mode — no API key needed)**
+- **GLM (z.ai — Anthropic-compatible API)**
+- **Local GPT-Code Relay (localhost:9001)**
+
+The project now includes:
+- A **robust environment switching tool** `cc_env_switcher.py`
+- Full **support for inline API key usage** (`--env KEY=value`)
+- Automatic cleaning of invalid Anthropic env variables
+- Enhanced instructions and usage examples
 
 ---
 
-## 1) Architecture
+# 📌 1. Features
+
+### ✅ Switch between 3 model providers
+| Mode | Description |
+|------|-------------|
+| `--claude` | Use Claude subscription (NO API KEY required) |
+| `--glm` | Use GLM (z.ai) via compatible Anthropic API |
+| `--relay` | Use local GPT-Code relay at `http://127.0.0.1:9001` |
+
+### ✅ No leftover variables
+When switching back to Claude subscription mode, script auto-removes:
+
+- `ANTHROPIC_AUTH_TOKEN`
+- `ANTHROPIC_BASE_URL`
+- `API_TIMEOUT_MS`
+- Old GLM/proxy variables
+
+### ✅ Multiple key input methods
+- Via OS environment variables (`ZAI_API_KEY`, `GLM_API_KEY`)
+- Via inline CLI arguments (`--env KEY=value`)
+- Via manual edit in `.claude/settings.json`
+
+---
+
+# 📌 2. Installation
+
+Clone or unzip into your workspace:
+
+```bash
+git clone http://github.com/yourrepo/claude-code-relay-en
+cd claude-code-relay-en
+```
+
+Make sure Python 3.8+ is installed.
+
+---
+
+# 📌 3. How the Switching System Works
+
+Claude Code reads configuration from FOUR layers (highest priority first):
+
+| Priority | File location | Description |
+|---------|----------------|-------------|
+| 1 | `.claude/settings.local.json` | Project-local override |
+| 2 | `.claude/settings.json` | Project config |
+| 3 | `~/.claude/settings.local.json` | User-local override |
+| 4 | `~/.claude/settings.json` | User-global default |
+
+The switcher automatically updates **all relevant files**.
+
+If none exist, it automatically creates:
 
 ```
-                 ┌──────────────────────────────────────────────────────┐
-                 │                    Claude Code (CLI)                 │
-                 │  reads ~/.claude/settings.json → env (models/routes) │
-                 └───────────────┬──────────────────────────────────────┘
-                                 │
-             ┌───────────────────┼─────────────────────┐
-             │                   │                     │
-     (A) Claude Native     (B) GLM via z.ai      (C) GPT Code via Relay (experimental)
-     ─────────────────      ───────────────      ───────────────────────────────────────
-   ANTHROPIC_BASE_URL     ANTHROPIC_BASE_URL     ANTHROPIC_BASE_URL → http://127.0.0.1:9001
-   unset (Anthropic)      https://api.z.ai/...   ANTHROPIC_AUTH_TOKEN → local-dev
-   tokens: Anthropic      tokens: z.ai key       Claude → Relay (SSE) → Codex CLI (subprocess)
-   API: /v1/messages      API: /v1/messages      Relay emits SSE: message_start/delta/stop
-                                                Health: GET /health, Logs: proxy_debug.log
+~/.claude/settings.json
 ```
 
-**Components**
+---
 
-- `tools/env_switcher.py` — **ENV switcher** (claude / glm_zai / gpt_code_via_relay).
-- `proxy/relay_server.py` — **Relay** (Flask + SSE) that shells out to Codex CLI via `subprocess`.
-- `.env.example` — config for `CODEX_WORKDIR`, `CODEX_MAX_RUN_SEC`, `CODEX_IDLE_AFTER_TURN_SEC`.
-- `examples/request.json` — Anthropic-like request payload for testing.
+# 📌 4. Usage Guide — Switching Commands
+
+## 🟦 A. Switch to Claude Subscription Mode (NO API KEY)
+
+```bash
+python cc_env_switcher.py --claude
+```
+
+This will:
+- Remove all GLM/proxy variables
+- Ensure no `BASE_URL` or `AUTH_TOKEN` is set
+- Restore `ANTHROPIC_DEFAULT_*` model fields
+
+> **Use this whenever you return from GLM → Claude**
 
 ---
 
-## 2) Tech & Decisions
+## 🟨 B. Switch to GLM (z.ai)
 
-- **Python 3.10+**
-- **Flask** to expose endpoints:
-  - `POST /v1/messages` — SSE streaming (Anthropic-compatible).
-  - `POST /v1/messages/count_tokens` — mock token counter so the Claude UI does not crash.
-  - `GET /health` — report status & runtime config.
-- **Subprocess Codex CLI** (`codex exec --json -`) instead of Realtime WS (public models lack realtime support).
-- **CWD** chosen in this order:
-  1. A line in the user message: `Working directory: D:\...`
-  2. `.env` variable `CODEX_WORKDIR`
-  3. The current process CWD (where you run the relay)
-- **Logging**: console + file `proxy_debug.log` (append mode).
-- **Windows-friendly**: advise `chcp 65001` or `PYTHONIOENCODING=utf-8` if emoji logs cause encoding errors.
+### **Option A — Inline Key (recommended for 1-time use)**
 
----
+```bash
+python cc_env_switcher.py --glm --env ZAI_API_KEY=sk-your-glm-key
+```
 
-## 3) Installation
+Supports multiple keys:
 
-### 3.1 Codex CLI (only if using GPT Code)
+```bash
+python cc_env_switcher.py --glm --env ZAI_API_KEY=sk-key GLM_API_KEY=backup-key
+```
+
+### **Option B — Environment Variable**
+PowerShell:
+
 ```powershell
-npm i -g @openai/codex
-codex login
+$env:ZAI_API_KEY="sk-your-glm-key"
+python cc_env_switcher.py --glm
 ```
 
-### 3.2 Switch profile with the ENV Switcher
+Linux/macOS:
+
+```bash
+export ZAI_API_KEY="sk-your-glm-key"
+python cc_env_switcher.py --glm
+```
+
+### **Option C — Manual edit**
+After running:
+
+```bash
+python cc_env_switcher.py --glm
+```
+
+Open the generated file:
+
+```
+~/.claude/settings.json
+```
+
+Replace:
+
+```jsonc
+"ANTHROPIC_AUTH_TOKEN": "your_zai_api_key_here"
+```
+
+---
+
+## 🟥 C. Switch to Local GPT-Code Relay
+
+```bash
+python cc_env_switcher.py --relay
+```
+
+If relay is not running → script warns.
+
+To force-enable:
+
+```bash
+python cc_env_switcher.py --relay --force
+```
+
+Relay expected at:
+
+```
+http://127.0.0.1:9001
+```
+
+---
+
+# 📌 5. Full CLI Reference
+
+| Command | Description |
+|--------|-------------|
+| `--claude` | Use Claude subscription mode |
+| `--glm` | Switch to GLM (z.ai) |
+| `--relay` | Use local GPT Code relay |
+| `--force` | Skip health check for relay |
+| `--env KEY=value` | Provide inline environment values |
+| `--help` | Show help |
+
+### Examples
+
+Switch to GLM with inline key:
+
+```bash
+python cc_env_switcher.py --glm --env ZAI_API_KEY=sk-123
+```
+
+Switch to relay & skip health check:
+
+```bash
+python cc_env_switcher.py --relay --force
+```
+
+Interactive mode:
+
+```bash
+python cc_env_switcher.py
+```
+
+---
+
+# 📌 6. Fix: API Key Errors When Returning to Claude
+
+If you see:
+```
+API key invalid
+```
+or
+```
+Unauthorized
+```
+Run:
+
+```bash
+python cc_env_switcher.py --claude
+```
+
+Additionally, check Windows environment variables:
+
 ```powershell
-python tools/env_switcher.py
-# 1) claude   2) glm_zai   3) gpt_code_via_relay
+Get-ChildItem Env:ANTHROPIC*
 ```
-> The switcher **auto-GETs** `http://127.0.0.1:9001/health`; it only sets the relay profile if the relay is running.
-> (Use `--force` to set the relay profile anyway.)
 
----
-
-## 4) Run the Relay (GPT Code path)
+Delete problematic ones:
 
 ```powershell
-copy .env.example .env
-# Edit .env if needed:
-# CODEX_WORKDIR=D:\Works\Bitbucket\your-repo
-# CODEX_MAX_RUN_SEC=0            # 0 = no hard cutoff; rely on idle-after-turn
-# CODEX_IDLE_AFTER_TURN_SEC=10   # seconds to close stream after turn.completed
-
-python proxy/relay_server.py
-
-# Health check
-curl http://127.0.0.1:9001/health
+[Environment]::SetEnvironmentVariable("ANTHROPIC_BASE_URL", $null, "User")
+[Environment]::SetEnvironmentVariable("ANTHROPIC_AUTH_TOKEN", $null, "User")
 ```
 
-Open a real repo (e.g., `D:\Works\Bitbucket\my-repo`), run `claude`, and type **hi** to test.  
-Want to pin CWD per session? Add this line in the first prompt:
-`Working directory: D:\\Works\\Bitbucket\\my-repo`
-
 ---
 
-## 5) Troubleshooting
-
-- **Claude UI “undefined is not an object (H.map)”**: the SSE stream is missing fields or wrong order — compare raw SSE in `proxy_debug.log`.
-- **UnicodeEncodeError (emoji)**: use `chcp 65001` / `PYTHONIOENCODING=utf-8` or remove emojis in your app’s logger.
-- **Not inside a trusted directory**: relay passes `--skip-git-repo-check` to Codex; ensure the CLI has sufficient rights.
-- **Hangs**: verify CWD exists, adjust `CODEX_MAX_RUN_SEC`, and check if `turn.completed` was seen (relay closes after idle).
-
----
-
-## 6) Layout
+# 📌 7. Folder Structure
 
 ```
 claude-code-relay-en/
-├─ proxy/
-│  └─ relay_server.py
-├─ tools/
-│  └─ env_switcher.py
-├─ examples/
-│  └─ request.json
-├─ .env.example
-├─ LICENSE
-└─ README.md
+ ├── proxy/
+ ├── tools/
+ ├── cc_env_switcher.py
+ ├── README.md
+ ├── LICENSE
+ └── examples/
 ```
 
 ---
 
-## 7) License
+# 📌 8. Credits
 
-MIT © 2025 BT Automate
+Enhanced by BT Automate with support for:
+- Inline environment injection
+- Automatic cleanup of Anthropic overrides
+- Multi-profile switching system
+- Improved README documentation
+
