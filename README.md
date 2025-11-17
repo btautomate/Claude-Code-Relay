@@ -43,7 +43,7 @@ When switching back to Claude subscription mode, script auto-removes:
 Clone or unzip into your workspace:
 
 ```bash
-git clone http://github.com/yourrepo/claude-code-relay-en
+git clone https://github.com/your-name/claude-code-relay-en.git
 cd claude-code-relay-en
 ```
 
@@ -66,13 +66,20 @@ The switcher automatically updates **all relevant files**.
 
 If none exist, it automatically creates:
 
-```
+```text
 ~/.claude/settings.json
 ```
 
 ---
 
 # 📌 4. Usage Guide — Switching Commands
+
+All commands below should be run **from the repository root**:
+
+```bash
+cd claude-code-relay-en
+python cc_env_switcher.py ...
+```
 
 ## 🟦 A. Switch to Claude Subscription Mode (NO API KEY)
 
@@ -81,11 +88,12 @@ python cc_env_switcher.py --claude
 ```
 
 This will:
+
 - Remove all GLM/proxy variables
-- Ensure no `BASE_URL` or `AUTH_TOKEN` is set
+- Ensure no `ANTHROPIC_BASE_URL` or `ANTHROPIC_AUTH_TOKEN` is set
 - Restore `ANTHROPIC_DEFAULT_*` model fields
 
-> **Use this whenever you return from GLM → Claude**
+> 💡 **Use this whenever you return from GLM → Claude**
 
 ---
 
@@ -104,14 +112,15 @@ python cc_env_switcher.py --glm --env ZAI_API_KEY=sk-key GLM_API_KEY=backup-key
 ```
 
 ### **Option B — Environment Variable**
-PowerShell:
+
+**PowerShell (Windows):**
 
 ```powershell
 $env:ZAI_API_KEY="sk-your-glm-key"
 python cc_env_switcher.py --glm
 ```
 
-Linux/macOS:
+**Linux/macOS (bash):**
 
 ```bash
 export ZAI_API_KEY="sk-your-glm-key"
@@ -119,15 +128,16 @@ python cc_env_switcher.py --glm
 ```
 
 ### **Option C — Manual edit**
+
 After running:
 
 ```bash
 python cc_env_switcher.py --glm
 ```
 
-Open the generated file:
+Open the generated file (for example):
 
-```
+```text
 ~/.claude/settings.json
 ```
 
@@ -136,6 +146,8 @@ Replace:
 ```jsonc
 "ANTHROPIC_AUTH_TOKEN": "your_zai_api_key_here"
 ```
+
+with your real GLM key.
 
 ---
 
@@ -155,7 +167,7 @@ python cc_env_switcher.py --relay --force
 
 Relay expected at:
 
-```
+```text
 http://127.0.0.1:9001
 ```
 
@@ -196,14 +208,18 @@ python cc_env_switcher.py
 
 # 📌 6. Fix: API Key Errors When Returning to Claude
 
-If you see:
-```
+If you see errors such as:
+
+```text
 API key invalid
 ```
-or
-```
+
+or:
+
+```text
 Unauthorized
 ```
+
 Run:
 
 ```bash
@@ -223,27 +239,29 @@ Delete problematic ones:
 [Environment]::SetEnvironmentVariable("ANTHROPIC_AUTH_TOKEN", $null, "User")
 ```
 
+Then restart your terminal / VS Code.
+
 ---
 
 # 📌 7. Folder Structure
 
-```
+```text
 claude-code-relay-en/
- ├── proxy/
- ├── tools/
- ├── cc_env_switcher.py
- ├── README.md
+ ├── proxy/                 # Relay implementation
+ ├── tools/                 # Additional helper tools
+ ├── cc_env_switcher.py     # NEW: environment profile switcher
+ ├── README.md              # This file
  ├── LICENSE
- └── examples/
+ └── examples/              # Example configs / usage
 ```
 
 ---
 
 # 📌 8. Credits
 
-Enhanced by BT Automate with support for:
+Enhanced by **BT Automate** with support for:
+
 - Inline environment injection
 - Automatic cleanup of Anthropic overrides
 - Multi-profile switching system
 - Improved README documentation
-
